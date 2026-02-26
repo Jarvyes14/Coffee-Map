@@ -1,16 +1,51 @@
-# React + Vite
+# Coffee Map
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mapa de cafeterías en Mérida con escaneo en Google Maps Places y autenticación con Firebase (email/contraseña).
 
-Currently, two official plugins are available:
+## 1) Crear proyecto en Firebase
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. Entra a [Firebase Console](https://console.firebase.google.com/) y crea un proyecto.
+2. En el panel del proyecto: **Build > Authentication > Get started**.
+3. En **Sign-in method**, habilita **Email/Password**.
+4. Ve a **Project settings > General**.
+5. En **Your apps**, crea una app web (`</>`).
+6. Copia la configuración de Firebase (`apiKey`, `authDomain`, etc.).
 
-## React Compiler
+## 2) Crear usuario de acceso
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. En **Authentication > Users**, haz clic en **Add user**.
+2. Define correo y contraseña para tu login.
 
-## Expanding the ESLint configuration
+## 3) Configurar variables de entorno
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Copia `.env.example` a `.env`.
+2. Completa estos valores:
+
+```env
+VITE_GOOGLE_MAPS_API_KEY=...
+
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+## 4) Ejecutar proyecto
+
+```bash
+npm install
+npm run dev
+```
+
+## Flujo de la app
+
+- `/login`: formulario de inicio de sesión.
+- `/`: mapa protegido (solo si hay sesión activa).
+- Botón **Cerrar sesión** en la vista principal.
+
+## Seguridad recomendada
+
+- Restringe tu API key de Google Maps por dominio (HTTP referrers).
+- En Firebase Auth, agrega dominios permitidos en **Authentication > Settings > Authorized domains**.

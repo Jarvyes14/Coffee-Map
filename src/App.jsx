@@ -1,26 +1,64 @@
 import { useEffect, useRef, useState } from 'react'
 import CafeMarker from './components/CafeMarker'
+import initialCafes from './assets/mapeo_cafes.json'
+import { useAuth } from './context/AuthContext'
 
 function App() {
+  const { logout } = useAuth();
   const mapRef = useRef(null)
   const [map, setMap] = useState(null)
   const [markerLib, setMarkerLib] = useState(null)
-  const [cafes, setCafes] = useState([])
   const [scanning, setScanning] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [loggingOut, setLoggingOut] = useState(false)
   const isInitialLoad = useRef(false)
 
-  // Función para descargar el JSON
+  // --- LÓGICA DE PERSISTENCIA ---
+  // Inicializamos el estado combinando el JSON estático con lo que hayamos guardado en el navegador
+  const [cafes, setCafes] = useState(() => {
+    const savedCafes = localStorage.getItem('merida_cafes_db');
+    if (savedCafes) {
+      const parsed = JSON.parse(savedCafes);
+      // Combinamos para asegurar que no perdamos lo nuevo ni lo viejo
+      const combined = [...initialCafes, ...parsed];
+      // Eliminamos duplicados por ID por si acaso
+      return Array.from(new Map(combined.map(item => [item.id, item])).values());
+    }
+    return initialCafes;
+  });
+
+  // Cada vez que 'cafes' cambie, guardamos automáticamente en el navegador
+  useEffect(() => {
+    localStorage.setItem('merida_cafes_db', JSON.stringify(cafes));
+  }, [cafes]);
+
+  const showToast = (message) => {
+    const id = Date.now() + Math.random();
+    setNotifications((prev) => [...prev, { id, message }]);
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }, 4000);
+  };
+
   const downloadJSON = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cafes, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `mapeo_cafes_${cafes.length}_items.json`);
+    downloadAnchorNode.setAttribute("download", `mapeo_cafes_final_${cafes.length}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   };
 
-  // FUNCIÓN PARA ESCANEAR LA ZONA ACTUAL
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   const scanCurrentView = async () => {
     if (!map) return;
     setScanning(true);
@@ -32,34 +70,46 @@ function App() {
       const { places } = await Place.searchByText({
         textQuery: 'cafetería',
         fields: ['id', 'displayName', 'location', 'rating', 'userRatingCount', 'photos', 'googleMapsURI'],
-        // CAMBIO AQUÍ:
-        locationRestriction: map.getBounds(), // Usa el rectángulo exacto de tu pantalla
+        locationBias: currentCenter,
         maxResultCount: 20,
       });
 
       if (places && places.length > 0) {
-        setCafes((prevCafes) => {
-          // Usamos un Map temporal para asegurar que no haya IDs duplicados
-          const cache = new Map();
-          prevCafes.forEach(c => cache.set(c.id, c));
-          
-          places.forEach(p => {
-            cache.set(p.id, {
-              id: p.id,
-              nombre: p.displayName,
-              pos: { lat: p.location.lat(), lng: p.location.lng() },
-              rating: p.rating,
-              reviews: p.userRatingCount,
-              link: p.googleMapsURI,
-              imageUrl: p.photos?.[0]?.getURI({ maxWidth: 400 }) || null,
-            });
-          });
-          
-          return Array.from(cache.values());
+        const nuevosParaAgregar = [];
+        const idsExistentes = new Set(cafes.map(c => c.id));
+
+        const localesProcesados = places.map(p => ({
+          id: p.id,
+          nombre: p.displayName,
+          pos: { lat: p.location.lat(), lng: p.location.lng() },
+          rating: p.rating,
+          reviews: p.userRatingCount,
+          link: p.googleMapsURI,
+          imageUrl: p.photos?.[0]?.getURI({ maxWidth: 400 }) || null,
+        }));
+
+        localesProcesados.forEach(lp => {
+          if (!idsExistentes.has(lp.id)) {
+            nuevosParaAgregar.push(lp);
+          }
         });
+
+        if (nuevosParaAgregar.length > 0) {
+          // AL ACTUALIZAR AQUÍ, EL USEEFFECT LO GUARDARÁ EN LOCALSTORAGE
+          setCafes(prev => [...prev, ...nuevosParaAgregar]);
+
+          nuevosParaAgregar.forEach((cafe, index) => {
+            setTimeout(() => {
+              showToast(`✨ ¡Nueva! "${cafe.nombre}" guardada.`);
+            }, index * 600);
+          });
+        } else {
+          showToast("📍 No hay nada nuevo en esta zona.");
+        }
       }
     } catch (error) {
-      console.error("Error al escanear zona:", error);
+      console.error(error);
+      showToast("❌ Error en la conexión.");
     } finally {
       setScanning(false);
     }
@@ -74,25 +124,32 @@ function App() {
         const { Map } = await window.google.maps.importLibrary("maps");
         const { AdvancedMarkerElement } = await window.google.maps.importLibrary("marker");
 
-        const center = { lat: 20.9753, lng: -89.6178 };
-
         const mapInstance = new Map(mapRef.current, {
-          center: center,
+          center: { lat: 20.9753, lng: -89.6178 },
           zoom: 14,
-          mapId: '383293d592cd3fce17f51410', 
-          disableDefaultUI: false,
+          mapId: '383293d592cd3fce17f51410',
+          disableDefaultUI: true,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
+          rotateControl: false,
+          cameraControl: false,
         });
 
         setMap(mapInstance);
         setMarkerLib({ AdvancedMarkerElement });
-      } catch (error) {
-        console.error("Error inicializando mapa:", error);
-      }
+      } catch (error) { console.error(error); }
     };
 
     if (!window.google) {
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        showToast("❌ Falta VITE_GOOGLE_MAPS_API_KEY en .env");
+        return;
+      }
+
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyD6Vdvl-ITAKJPpHIq4NCDTSKFcIe3dcZs&v=beta&libraries=places`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=beta&libraries=places`;
       script.async = true;
       script.onload = initMap;
       document.head.appendChild(script);
@@ -102,46 +159,82 @@ function App() {
   }, []);
 
   return (
-    <main className="h-full w-full relative bg-gray-100">
-      {/* Panel de Control */}
-      <div className="absolute top-6 left-6 z-20 bg-white p-6 rounded-2xl shadow-2xl w-72 border border-blue-100">
-        <h2 className="text-xl font-bold text-gray-800 mb-1">☕️ Café Scanner</h2>
-        <p className="text-xs text-blue-500 font-mono mb-4">MODO MANUAL POR ZONA</p>
+    <main className="h-full w-full relative bg-gray-100 overflow-hidden">
+      <style>{`
+        @keyframes slideIn {
+          0% { transform: translateX(120%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+          animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+      `}</style>
+
+      <div className="absolute top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        {notifications.map((n) => (
+          <div key={n.id} className="bg-black/85 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-in pointer-events-auto min-w-[280px]">
+            <span className="text-lg">☕️</span>
+            <p className="text-sm font-medium tracking-tight">{n.message}</p>
+          </div>
+        ))}
+      </div>
+
+      <button className="absolute top-6 left-6 z-30 w-10 h-10 rounded-full bg-[#372821] hover:bg-gray-100 shadow-lg transition-all active:scale-95 flex items-center justify-center">
+        <span className="text-md text-[#E6DAC1]">☰</span>
+      </button>
+
+      <button className="absolute top-6 right-6 z-30 w-10 h-10 rounded-full bg-[#372821] hover:bg-gray-100 shadow-lg transition-all active:scale-95 flex items-center justify-center">
+        <span className="text-xl text-[#E6DAC1]">👤</span>
+      </button>
+
+      {/*Este elemento es para pruebas y desarrollo, no forma parte de la UI final, pero tampoco debe ser eliminado o modificado */}
+      <div className="hidden absolute top-6/11 left-6 z-20 bg-white/95 backdrop-blur-sm p-6 rounded-3xl shadow-2xl w-80 border border-gray-100">
+        <h2 className="text-2xl font-black text-gray-900 mb-1">Mérida DB</h2>
+        <div className="flex items-center gap-2 mb-6">
+          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Memoria local activa</p>
+        </div>
         
-        <div className="bg-blue-50 p-3 rounded-xl mb-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-blue-600">Total capturado:</span>
-            <span className="text-lg font-bold text-blue-800">{cafes.length}</span>
+        <div className="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-100 flex justify-around">
+          <div className="text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-bold">Total Acumulado</p>
+            <p className="text-3xl font-black text-gray-800">{cafes.length}</p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <button 
-            onClick={scanCurrentView}
+            onClick={scanCurrentView} 
             disabled={scanning}
-            className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg active:scale-95 ${
-              scanning ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+            className={`w-full font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${scanning ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
           >
-            {scanning ? "BUSCANDO..." : "ESCANEAR ESTA ZONA"}
+            {scanning ? "ESCANEANDO..." : "ESCANEAR Y GUARDAR"}
           </button>
 
           <button 
             onClick={downloadJSON}
-            disabled={cafes.length === 0}
-            className="w-full bg-black hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-30 shadow-md"
+            className="w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-900 font-bold py-3 rounded-2xl transition-all shadow-sm"
           >
-            DESCARGAR JSON
+            EXPORTAR PARA EL ASSET
+          </button>
+
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className={`w-full font-bold py-3 rounded-2xl transition-all ${loggingOut ? 'bg-gray-200 text-gray-400' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+          >
+            {loggingOut ? 'CERRANDO...' : 'CERRAR SESIÓN'}
           </button>
         </div>
-        
-        <p className="mt-4 text-[10px] text-gray-400 leading-tight">
-          * Mueve el mapa a una zona y presiona "Escanear" para acumular cafeterías.
-        </p>
       </div>
 
       <div id="map" ref={mapRef} className="h-screen w-full" />
-      
+
+      <div 
+        className="absolute inset-0 pointer-events-none bg-[#372821]/30" 
+        style={{ zIndex: 1, mixBlendMode: 'sepia' }} 
+      />
+
       {map && markerLib && cafes.map((cafe) => (
         <CafeMarker
           key={cafe.id}
