@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import CafeMarker from './components/CafeMarker'
-import initialCafes from './assets/mapeo_cafes.json'
 import { useAuth } from './context/AuthContext'
+import { supabase } from './supabase'
 
 function App() {
   const { logout } = useAuth();
@@ -13,24 +13,35 @@ function App() {
   const [loggingOut, setLoggingOut] = useState(false)
   const isInitialLoad = useRef(false)
 
-  // --- LÓGICA DE PERSISTENCIA ---
-  // Inicializamos el estado combinando el JSON estático con lo que hayamos guardado en el navegador
-  const [cafes, setCafes] = useState(() => {
-    const savedCafes = localStorage.getItem('merida_cafes_db');
-    if (savedCafes) {
-      const parsed = JSON.parse(savedCafes);
-      // Combinamos para asegurar que no perdamos lo nuevo ni lo viejo
-      const combined = [...initialCafes, ...parsed];
-      // Eliminamos duplicados por ID por si acaso
-      return Array.from(new Map(combined.map(item => [item.id, item])).values());
-    }
-    return initialCafes;
-  });
+  const [cafes, setCafes] = useState([]);
 
-  // Cada vez que 'cafes' cambie, guardamos automáticamente en el navegador
+  // Cargar cafeterías desde Supabase al iniciar
   useEffect(() => {
-    localStorage.setItem('merida_cafes_db', JSON.stringify(cafes));
-  }, [cafes]);
+    const fetchCafes = async () => {
+      const { data, error } = await supabase
+        .from('cafes')
+        .select('*');
+      
+      if (error) {
+        console.error('Error cargando cafeterías:', error);
+        showToast("❌ Error al cargar las cafeterías.");
+      } else if (data) {
+        // Formatear los datos para que coincidan con la estructura que espera el mapa
+        const formattedCafes = data.map(cafe => ({
+          id: cafe.id,
+          nombre: cafe.nombre,
+          pos: { lat: cafe.lat, lng: cafe.lng },
+          rating: cafe.rating,
+          reviews: cafe.reviews,
+          link: cafe.link,
+          imageUrl: cafe.image_url
+        }));
+        setCafes(formattedCafes);
+      }
+    };
+
+    fetchCafes();
+  }, []);
 
   const showToast = (message) => {
     const id = Date.now() + Math.random();
@@ -38,16 +49,6 @@ function App() {
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, 4000);
-  };
-
-  const downloadJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cafes, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `mapeo_cafes_final_${cafes.length}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
   };
 
   const handleLogout = async () => {
@@ -95,14 +96,36 @@ function App() {
         });
 
         if (nuevosParaAgregar.length > 0) {
-          // AL ACTUALIZAR AQUÍ, EL USEEFFECT LO GUARDARÁ EN LOCALSTORAGE
-          setCafes(prev => [...prev, ...nuevosParaAgregar]);
+          // Preparar datos para Supabase
+          const cafesParaSupabase = nuevosParaAgregar.map(cafe => ({
+            id: cafe.id,
+            nombre: cafe.nombre,
+            lat: cafe.pos.lat,
+            lng: cafe.pos.lng,
+            rating: cafe.rating,
+            reviews: cafe.reviews,
+            link: cafe.link,
+            image_url: cafe.imageUrl
+          }));
 
-          nuevosParaAgregar.forEach((cafe, index) => {
-            setTimeout(() => {
-              showToast(`✨ ¡Nueva! "${cafe.nombre}" guardada.`);
-            }, index * 600);
-          });
+          // Insertar en Supabase
+          const { error: insertError } = await supabase
+            .from('cafes')
+            .insert(cafesParaSupabase);
+
+          if (insertError) {
+            console.error('Error guardando en Supabase:', insertError);
+            showToast("❌ Error al guardar las nuevas cafeterías.");
+          } else {
+            // Actualizar estado local solo si se guardó en la BD
+            setCafes(prev => [...prev, ...nuevosParaAgregar]);
+
+            nuevosParaAgregar.forEach((cafe, index) => {
+              setTimeout(() => {
+                showToast(`✨ ¡Nueva! "${cafe.nombre}" guardada.`);
+              }, index * 600);
+            });
+          }
         } else {
           showToast("📍 No hay nada nuevo en esta zona.");
         }
@@ -192,7 +215,7 @@ function App() {
         <h2 className="text-2xl font-black text-gray-900 mb-1">Mérida DB</h2>
         <div className="flex items-center gap-2 mb-6">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Memoria local activa</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Conectado a Supabase</p>
         </div>
         
         <div className="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-100 flex justify-around">
@@ -209,13 +232,6 @@ function App() {
             className={`w-full font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 ${scanning ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
           >
             {scanning ? "ESCANEANDO..." : "ESCANEAR Y GUARDAR"}
-          </button>
-
-          <button 
-            onClick={downloadJSON}
-            className="w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-900 font-bold py-3 rounded-2xl transition-all shadow-sm"
-          >
-            EXPORTAR PARA EL ASSET
           </button>
 
           <button
