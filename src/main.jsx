@@ -6,6 +6,8 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import SearchPage from './pages/SearchPage'
+import CafePage from './pages/CafePage'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -18,6 +20,22 @@ createRoot(document.getElementById('root')).render(
             element={
               <ProtectedRoute>
                 <App />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cafe/:id"
+            element={
+              <ProtectedRoute>
+                <CafePage />
               </ProtectedRoute>
             }
           />

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerColor = '#4B2C20' }) {
+function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerColor = '#4B2C20', onClick }) {
   useEffect(() => {
     if (!map || !markerLib) {
       return
@@ -94,6 +94,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
       isAnimating = true
       markerRoot.classList.add('cafe-marker--expanded', 'cafe-marker--animating')
+      marker.zIndex = 10 // Elevar el z-index al expandir
       setExpandedStyles()
 
       animationTimeoutId = window.setTimeout(() => {
@@ -102,6 +103,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
         if (!isHovered) {
           markerRoot.classList.remove('cafe-marker--expanded')
+          marker.zIndex = null // Restaurar z-index
           setCollapsedStyles()
         }
       }, 1000)
@@ -117,6 +119,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
       if (!isAnimating) {
         markerRoot.classList.remove('cafe-marker--expanded')
+        marker.zIndex = null // Restaurar z-index
         setCollapsedStyles()
       }
     }
@@ -133,8 +136,28 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
     })
 
     const clickListener = marker.addListener('click', () => {
-      if (typeof link === 'string' && link.length > 0) {
-        window.open(link, '_blank', 'noopener,noreferrer')
+      if (!markerRoot.classList.contains('cafe-marker--expanded')) {
+        // Primer clic: expandir (simular hover)
+        isHovered = true
+        startExpandAnimation()
+        
+        // Colapsar si se hace clic en el mapa
+        const mapClickListener = map.addListener('click', () => {
+          isHovered = false
+          if (!isAnimating) {
+            markerRoot.classList.remove('cafe-marker--expanded')
+            marker.zIndex = null // Restaurar z-index al colapsar por clic en mapa
+            setCollapsedStyles()
+          }
+          window.google.maps.event.removeListener(mapClickListener)
+        })
+      } else {
+        // Segundo clic: navegar
+        if (onClick) {
+          onClick()
+        } else if (typeof link === 'string' && link.length > 0) {
+          window.open(link, '_blank', 'noopener,noreferrer')
+        }
       }
     })
 

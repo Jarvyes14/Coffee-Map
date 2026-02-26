@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Menu, Search, User, LocateFixed, AlertCircle, CheckCircle2, MapPin, Sparkles, Coffee } from 'lucide-react'
 import CafeMarker from './components/CafeMarker'
 import { useAuth } from './context/AuthContext'
 import { supabase } from './supabase'
 
+const getToastIcon = (type) => {
+  switch(type) {
+    case 'error': return <AlertCircle className="text-red-400 shrink-0" size={20} />;
+    case 'success': return <CheckCircle2 className="text-green-400 shrink-0" size={20} />;
+    case 'location': return <MapPin className="text-blue-400 shrink-0" size={20} />;
+    case 'new': return <Sparkles className="text-yellow-400 shrink-0" size={20} />;
+    default: return <Coffee className="text-[#E6DAC1] shrink-0" size={20} />;
+  }
+};
+
 function App() {
+  const navigate = useNavigate();
   const { logout } = useAuth();
   const mapRef = useRef(null)
   const [map, setMap] = useState(null)
@@ -11,6 +24,8 @@ function App() {
   const [scanning, setScanning] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [loggingOut, setLoggingOut] = useState(false)
+  const [userLocation, setUserLocation] = useState(null)
+  const [locating, setLocating] = useState(false)
   const isInitialLoad = useRef(false)
 
   const [cafes, setCafes] = useState([]);
@@ -24,7 +39,7 @@ function App() {
       
       if (error) {
         console.error('Error cargando cafeterías:', error);
-        showToast("❌ Error al cargar las cafeterías.");
+        showToast("Error al cargar las cafeterías.", "error");
       } else if (data) {
         // Formatear los datos para que coincidan con la estructura que espera el mapa
         const formattedCafes = data.map(cafe => ({
@@ -43,9 +58,9 @@ function App() {
     fetchCafes();
   }, []);
 
-  const showToast = (message) => {
+  const showToast = (message, type = 'default') => {
     const id = Date.now() + Math.random();
-    setNotifications((prev) => [...prev, { id, message }]);
+    setNotifications((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, 4000);
@@ -57,6 +72,37 @@ function App() {
       await logout();
     } finally {
       setLoggingOut(false);
+    }
+  };
+
+  const locateUser = () => {
+    if (!map) return;
+    
+    setLocating(true);
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          
+          setUserLocation(pos);
+          map.panTo(pos);
+          map.setZoom(15);
+          setLocating(false);
+        },
+        (error) => {
+          console.error("Error de geolocalización:", error);
+          setLocating(false);
+          showToast("No se pudo obtener tu ubicación", "error");
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      setLocating(false);
+      showToast("Tu navegador no soporta geolocalización", "error");
     }
   };
 
@@ -115,24 +161,24 @@ function App() {
 
           if (insertError) {
             console.error('Error guardando en Supabase:', insertError);
-            showToast("❌ Error al guardar las nuevas cafeterías.");
+            showToast("Error al guardar las nuevas cafeterías.", "error");
           } else {
             // Actualizar estado local solo si se guardó en la BD
             setCafes(prev => [...prev, ...nuevosParaAgregar]);
 
             nuevosParaAgregar.forEach((cafe, index) => {
               setTimeout(() => {
-                showToast(`✨ ¡Nueva! "${cafe.nombre}" guardada.`);
+                showToast(`¡Nueva! "${cafe.nombre}" guardada.`, "new");
               }, index * 600);
             });
           }
         } else {
-          showToast("📍 No hay nada nuevo en esta zona.");
+          showToast("No hay nada nuevo en esta zona.", "location");
         }
       }
     } catch (error) {
       console.error(error);
-      showToast("❌ Error en la conexión.");
+      showToast("Error en la conexión.", "error");
     } finally {
       setScanning(false);
     }
@@ -167,7 +213,7 @@ function App() {
     if (!window.google) {
       const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        showToast("❌ Falta VITE_GOOGLE_MAPS_API_KEY en .env");
+        showToast("Falta VITE_GOOGLE_MAPS_API_KEY en .env", "error");
         return;
       }
 
@@ -196,18 +242,44 @@ function App() {
       <div className="absolute top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
         {notifications.map((n) => (
           <div key={n.id} className="bg-black/85 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-in pointer-events-auto min-w-[280px]">
-            <span className="text-lg">☕️</span>
+            {getToastIcon(n.type)}
             <p className="text-sm font-medium tracking-tight">{n.message}</p>
           </div>
         ))}
       </div>
 
-      <button className="absolute top-6 left-6 z-30 w-10 h-10 rounded-full bg-[#372821] hover:bg-gray-100 shadow-lg transition-all active:scale-95 flex items-center justify-center">
-        <span className="text-md text-[#E6DAC1]">☰</span>
+      {/* Gradiente superior para dar contraste a los botones sin usar una barra sólida */}
+      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/50 to-transparent z-20 pointer-events-none" />
+
+      {/* Botón izquierdo de extras */}
+      <button className="absolute top-6 left-6 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center">
+        <Menu className="text-[#E6DAC1]" size={18} />
       </button>
 
-      <button className="absolute top-6 right-6 z-30 w-10 h-10 rounded-full bg-[#372821] hover:bg-gray-100 shadow-lg transition-all active:scale-95 flex items-center justify-center">
-        <span className="text-xl text-[#E6DAC1]">👤</span>
+      {/* Botón central de búsqueda */}
+      <button 
+        onClick={() => navigate('/search')}
+        className="absolute top-6 left-1/2 -translate-x-1/2 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center gap-2"
+      >
+        <Search className="text-[#E6DAC1]" size={18} />
+      </button>
+
+      {/* Botón derecho de usuario */}
+      <button className="absolute top-6 right-6 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center">
+        <User className="text-[#E6DAC1]" size={18} />
+      </button>
+
+      {/* Botón de geolocalización */}
+      <button 
+        onClick={locateUser}
+        disabled={locating}
+        className="absolute bottom-8 right-6 z-30 w-10 h-10 rounded-full bg-white hover:bg-gray-50 shadow-[0_4px_12px_rgba(0,0,0,0.2)] border border-gray-200 transition-all active:scale-95 flex items-center justify-center"
+      >
+        {locating ? (
+          <div className="w-6 h-6 border-3 border-[#372821] border-t-transparent rounded-full animate-spin"></div>
+        ) : (
+          <LocateFixed className="text-[#372821]" size={28} />
+        )}
       </button>
 
       {/*Este elemento es para pruebas y desarrollo, no forma parte de la UI final, pero tampoco debe ser eliminado o modificado */}
@@ -246,8 +318,9 @@ function App() {
 
       <div id="map" ref={mapRef} className="h-screen w-full" />
 
+      {/*Este elemento es para pruebas y desarrollo, no forma parte de la UI final, pero tampoco debe ser eliminado o modificado */}
       <div 
-        className="absolute inset-0 pointer-events-none bg-[#372821]/30" 
+        className="absolute inset-0 pointer-events-none bg-[#372821]/0" 
         style={{ zIndex: 1, mixBlendMode: 'sepia' }} 
       />
 
@@ -258,8 +331,22 @@ function App() {
           markerLib={markerLib}
           position={cafe.pos}
           title={cafe.nombre}
+          imageUrl={cafe.imageUrl}
+          link={cafe.link}
+          onClick={() => navigate(`/cafe/${cafe.id}`)}
         />
       ))}
+
+      {map && markerLib && userLocation && (
+        <CafeMarker
+          key="user-location"
+          map={map}
+          markerLib={markerLib}
+          position={userLocation}
+          title="Tu ubicación"
+          markerColor="#3B82F6"
+        />
+      )}
     </main>
   );
 }
