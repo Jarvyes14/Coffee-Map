@@ -7,6 +7,7 @@ function SearchPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [cafes, setCafes] = useState([]);
+  const [allCafes, setAllCafes] = useState([]); // Guardar todas las cafeterías para la búsqueda
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(false);
@@ -59,7 +60,7 @@ function SearchPage() {
       if (!error && data) {
         let processedCafes = data;
 
-        // Si tenemos la ubicación del usuario, calculamos distancias y ordenamos
+        // Si tenemos la ubicación del usuario, calculamos distancias
         if (userLocation) {
           processedCafes = data.map(cafe => ({
             ...cafe,
@@ -69,11 +70,18 @@ function SearchPage() {
               cafe.lat, 
               cafe.lng
             )
-          })).sort((a, b) => a.distance - b.distance);
+          }));
         }
 
-        // Limitamos a 20 resultados después de ordenar
-        setCafes(processedCafes.slice(0, 20));
+        // Guardamos todas las cafeterías (con o sin distancia) para la búsqueda global
+        setAllCafes(processedCafes);
+
+        // Para la vista inicial (sin búsqueda), ordenamos por distancia y limitamos a 20
+        const nearbyCafes = [...processedCafes]
+          .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+          .slice(0, 20);
+          
+        setCafes(nearbyCafes);
       }
       setLoading(false);
     };
@@ -81,9 +89,11 @@ function SearchPage() {
     fetchCafes();
   }, [userLocation, locationError]); // Se ejecuta cuando obtenemos ubicación o falla
 
-  const filteredCafes = cafes.filter(cafe => 
-    cafe.nombre.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Si hay texto de búsqueda, filtramos sobre TODAS las cafeterías y limitamos a 5. 
+  // Si no hay texto, mostramos solo las 20 más cercanas.
+  const displayedCafes = searchQuery.trim() !== '' 
+    ? allCafes.filter(cafe => cafe.nombre.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 4)
+    : cafes;
 
 return (
     <main className="h-full w-full bg-[#1D1A15] flex flex-col">
@@ -93,7 +103,7 @@ return (
             <div className="w-full flex items-center gap-4 mb-6">
                     <button 
                     onClick={() => navigate('/')}
-                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                    className="w-10 h-10 rounded-full bg-[#372821] hover:bg-[#372821]/50 flex items-center justify-center transition-colors"
                     >
                     <ArrowLeft className="text-[#E6DAC1]" size={24} />
                     </button>
@@ -129,9 +139,9 @@ return (
                 <div className="flex justify-center py-10">
                     <div className="w-8 h-8 border-4 border-[#372821] border-t-transparent rounded-full animate-spin"></div>
                 </div>
-            ) : filteredCafes.length > 0 ? (
+            ) : displayedCafes.length > 0 ? (
                 <div className="flex flex-col gap-8">
-                    {filteredCafes.map(cafe => (
+                    {displayedCafes.map(cafe => (
                         <div 
                             key={cafe.id} 
                             onClick={() => navigate(`/cafe/${cafe.id}`)}

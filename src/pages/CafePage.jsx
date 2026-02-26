@@ -75,8 +75,8 @@ function CafePage() {
       </div>
 
       {/* Mitad inferior: Información */}
-      <div className="flex flex-col -mt-18 relative z-10 items-center">
-        <div className="bg-[#372821]/95 rounded-3xl p-6 shadow-xl">
+      <div className="flex flex-col -mt-16 relative z-10 items-center">
+        <div className="bg-[#372821]/95 rounded-3xl p-6 shadow-xl w-full">
           <h1 className="text-2xl font-black text-gray-200 mb-2 leading-tight">
             {cafe.nombre}
           </h1>

@@ -8,6 +8,19 @@ import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import SearchPage from './pages/SearchPage'
 import CafePage from './pages/CafePage'
+import { registerSW } from 'virtual:pwa-register'
+
+// Registrar el Service Worker para la PWA
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('Nueva versión disponible. ¿Deseas actualizar?')) {
+      updateSW(true)
+    }
+  },
+  onOfflineReady() {
+    console.log('La aplicación está lista para usarse sin conexión')
+  },
+})
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
