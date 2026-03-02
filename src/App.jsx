@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Menu, Search, User, LocateFixed, AlertCircle, CheckCircle2, MapPin, Sparkles, Coffee } from 'lucide-react'
 import CafeMarker from './components/CafeMarker'
+import BottomNav from './components/BottomNav'
 import { useAuth } from './context/AuthContext'
 import { supabase } from './supabase'
 
@@ -111,28 +112,48 @@ function App() {
     setScanning(true);
 
     try {
-      const { Place } = await window.google.maps.importLibrary("places");
       const currentCenter = map.getCenter();
+      const lat = currentCenter.lat();
+      const lng = currentCenter.lng();
 
-      const { places } = await Place.searchByText({
-        textQuery: 'cafetería',
-        fields: ['id', 'displayName', 'location', 'rating', 'userRatingCount', 'photos', 'googleMapsURI'],
-        locationBias: currentCenter,
-        maxResultCount: 20,
+      const yelpApiKey = import.meta.env.VITE_YELP_API_KEY;
+      if (!yelpApiKey) {
+        showToast("Falta VITE_YELP_API_KEY en .env", "error");
+        setScanning(false);
+        return;
+      }
+
+      // Yelp bloquea peticiones directas desde el navegador por seguridad (CORS).
+      // Usamos corsproxy.io temporalmente para saltar esta restricción gratis.
+      const targetUrl = encodeURIComponent(`https://api.yelp.com/v3/businesses/search?term=cafe,coffee&latitude=${lat}&longitude=${lng}&limit=20&radius=2000`);
+      
+      const response = await fetch(`https://corsproxy.io/?${targetUrl}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${yelpApiKey}`,
+          'Accept': 'application/json'
+        }
       });
 
-      if (places && places.length > 0) {
+      if (!response.ok) {
+        throw new Error(`Error de Yelp: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const places = data.businesses || [];
+
+      if (places.length > 0) {
         const nuevosParaAgregar = [];
         const idsExistentes = new Set(cafes.map(c => c.id));
 
         const localesProcesados = places.map(p => ({
           id: p.id,
-          nombre: p.displayName,
-          pos: { lat: p.location.lat(), lng: p.location.lng() },
+          nombre: p.name,
+          pos: { lat: p.coordinates.latitude, lng: p.coordinates.longitude },
           rating: p.rating,
-          reviews: p.userRatingCount,
-          link: p.googleMapsURI,
-          imageUrl: p.photos?.[0]?.getURI({ maxWidth: 400 }) || null,
+          reviews: p.review_count,
+          link: p.url, // Enlace directo a Yelp
+          imageUrl: p.image_url || null, // Yelp te da 1 foto principal gratis
         }));
 
         localesProcesados.forEach(lp => {
@@ -175,10 +196,12 @@ function App() {
         } else {
           showToast("No hay nada nuevo en esta zona.", "location");
         }
+      } else {
+        showToast("No se encontraron cafeterías aquí.", "location");
       }
     } catch (error) {
       console.error(error);
-      showToast("Error en la conexión.", "error");
+      showToast("Error al escanear con Yelp.", "error");
     } finally {
       setScanning(false);
     }
@@ -248,32 +271,19 @@ function App() {
         ))}
       </div>
 
-      {/* Gradiente superior para dar contraste a los botones sin usar una barra sólida */}
-      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/50 to-transparent z-20 pointer-events-none" />
-
-      {/* Botón izquierdo de extras */}
-      <button className="absolute top-6 left-6 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center">
-        <Menu className="text-[#E6DAC1]" size={18} />
-      </button>
-
-      {/* Botón central de búsqueda */}
-      <button 
+      {/* Barra de búsqueda estilo input en la parte superior central */}
+      <div 
         onClick={() => navigate('/search')}
-        className="absolute top-6 left-1/2 -translate-x-1/2 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center gap-2"
+        className="absolute top-8 left-1/2 -translate-x-1/2 z-40 w-[85%] max-w-md h-10 rounded-full bg-[#372821]/95 flex items-center px-5 cursor-pointer hover:bg-white transition-all active:scale-[0.98]"
       >
-        <Search className="text-[#E6DAC1]" size={18} />
-      </button>
+        <Search className="text-white mr-3" size={22} />
+      </div>
 
-      {/* Botón derecho de usuario */}
-      <button className="absolute top-6 right-6 z-30 w-8 h-8 rounded-lg bg-[#000]/90 backdrop-blur-sm hover:bg-[#372821] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 transition-all active:scale-95 flex items-center justify-center">
-        <User className="text-[#E6DAC1]" size={18} />
-      </button>
-
-      {/* Botón de geolocalización */}
+      {/* Botón de geolocalización ajustado un poco más arriba para no chocar con la barra inferior */}
       <button 
         onClick={locateUser}
         disabled={locating}
-        className="absolute bottom-8 right-6 z-30 w-10 h-10 rounded-full bg-white hover:bg-gray-50 shadow-[0_4px_12px_rgba(0,0,0,0.2)] border border-gray-200 transition-all active:scale-95 flex items-center justify-center"
+        className="absolute bottom-28 right-6 z-30 w-10 h-10 rounded-full bg-white hover:bg-gray-50 shadow-[0_4px_12px_rgba(0,0,0,0.2)] border border-gray-200 transition-all active:scale-95 flex items-center justify-center"
       >
         {locating ? (
           <div className="w-6 h-6 border-3 border-[#372821] border-t-transparent rounded-full animate-spin"></div>
@@ -281,6 +291,9 @@ function App() {
           <LocateFixed className="text-[#372821]" size={28} />
         )}
       </button>
+
+      {/* Nueva Barra de navegación Inferior */}
+      <BottomNav />
 
       {/*Este elemento es para pruebas y desarrollo, no forma parte de la UI final, pero tampoco debe ser eliminado o modificado */}
       <div className="hidden absolute top-6/11 left-6 z-20 bg-white/95 backdrop-blur-sm p-6 rounded-3xl shadow-2xl w-80 border border-gray-100">
