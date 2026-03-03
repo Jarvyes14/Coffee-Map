@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Coffee, Star } from 'lucide-react';
+import { ArrowLeft, Search, Coffee, Star, X } from 'lucide-react';
 import { supabase } from '../supabase';
 
 function SearchPage() {
@@ -100,7 +100,7 @@ return (
         {/* Header */}
         <header className="p-4 pt-6 z-10 flex flex-col items-center gap-3">
             {/* Buttons */}
-            <div className="w-full flex items-center gap-4 mb-6">
+            <div className="w-full flex items-center gap-4 mb-4">
                     <button 
                     onClick={() => navigate('/')}
                     className="w-10 h-10 rounded-full bg-[#372821] hover:bg-[#372821]/50 flex items-center justify-center transition-colors"
@@ -110,7 +110,7 @@ return (
             </div>
 
             {/* Text */}
-            <h2 className="text-md italic text-[#E6DAC1]">
+            <h2 className="font-['Inria_Serif'] text-lg italic text-[#E6DAC1] mb-2">
                     Encuentra tu nueva cafetería favorita
             </h2>
 
@@ -121,11 +121,19 @@ return (
                     placeholder="Buscar cafeterías..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#372821] text-[#E6DAC1] placeholder-[#E6DAC1]/50 rounded-full py-3 px-4 pl-10 outline-none focus:ring-2 focus:ring-[#E6DAC1]/50 transition-all"
+                    className="w-full bg-[#372821] text-[#E6DAC1] placeholder-[#E6DAC1]/50 rounded-full py-3 px-4 pl-10 pr-10 outline-none focus:ring-2 focus:ring-[#E6DAC1]/50 transition-all"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#E6DAC1]/50">
                     <Search size={20} />
                 </span>
+                {searchQuery && (
+                    <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#E6DAC1]/50 hover:text-[#E6DAC1] transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                )}
             </div>
         </header>
 
@@ -154,8 +162,8 @@ return (
                                     <Coffee className="text-[#E6DAC1]" size={28} />
                                 </div>
                             )}
-                            <div className="flex-1 pr-4">
-                                <h3 className="font-bold text-[#E6DAC1] line-clamp-2">{cafe.nombre}</h3>
+                            <div className="flex-1 pr-4 min-w-0">
+                                <h3 className="font-lancelot text-xl text-[#E6DAC1] uppercase tracking-wide truncate">{cafe.nombre}</h3>
                                 <div className="flex items-center gap-1 mt-1">
                                     <Star className="text-yellow-500 fill-yellow-500" size={14} />
                                     <span className="text-sm font-medium text-[#E6DAC1]/50">{cafe.rating || 'N/A'}</span>
