@@ -163,12 +163,12 @@ function CafePage() {
             <Coffee className="text-[#372821]/30" size={80} />
           </div>
         )}
-        <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-[#1D1A15] to-transparent"></div>
+        <div className="absolute bottom-0 left-0 w-full h-24 bg-linear-to-t from-[#1D1A15] to-transparent"></div>
       </div>
 
       {/* Mitad inferior principal */}
       <div className="flex flex-col -mt-10 relative z-10 px-4">
-        <div className="bg-[#27201A] rounded-[2rem] p-6 shadow-xl w-full border border-white/5 mb-6">
+        <div className="bg-[#27201A] rounded-4xl p-6 shadow-xl w-full border border-white/5 mb-6">
           <h1 className="text-2xl font-black text-[#E6DAC1] mb-2 leading-tight uppercase font-lancelot truncate">
             {cafe.nombre}
           </h1>
@@ -210,7 +210,7 @@ function CafePage() {
         </div>
 
         {/* Sección de Reseña del Usuario */}
-        <div className="bg-[#27201A] rounded-[2rem] p-6 shadow-xl w-full border border-white/5 mb-6">
+        <div className="bg-[#27201A] rounded-4xl p-6 shadow-xl w-full border border-white/5 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-[#E6DAC1] text-lg">Mi Reseña</h3>
             {!isEditingReview && (
@@ -239,7 +239,7 @@ function CafePage() {
                 value={reviewText} 
                 onChange={(e) => setReviewText(e.target.value)}
                 placeholder="¿Qué tal estuvo el café? ¿Y el internet?..."
-                className="w-full bg-[#1D1A15] text-[#E6DAC1] p-4 rounded-2xl outline-none min-h-[120px] resize-none border border-white/5 focus:border-[#E6DAC1]/30"
+                className="w-full bg-[#1D1A15] text-[#E6DAC1] p-4 rounded-2xl outline-none min-h-30 resize-none border border-white/5 focus:border-[#E6DAC1]/30"
               />
               
               <div className="flex gap-3 mt-2">

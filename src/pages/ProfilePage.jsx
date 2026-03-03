@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
-import { Settings, Coffee, Star, MapPin, Heart, ArrowLeft, LogOut } from 'lucide-react';
+import { Settings, Coffee, Star, MapPin, Heart, ArrowLeft, LogOut, Camera, Loader2 } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 
 function ProfilePage() {
@@ -12,6 +12,7 @@ function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [visitedPlaces, setVisitedPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
@@ -95,6 +96,49 @@ function ProfilePage() {
     navigate('/login');
   };
 
+  const uploadAvatar = async (event) => {
+    try {
+      setUploading(true);
+
+      if (!event.target.files || event.target.files.length === 0) {
+        throw new Error('Debes seleccionar una imagen para subir.');
+      }
+
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      let { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      const updates = {
+        id: user.id,
+        avatar_url: data.publicUrl,
+        username: profile.username
+      };
+
+      let { error } = await supabase.from('profiles').upsert(updates);
+
+      if (error) {
+        throw error;
+      }
+      
+      setProfile({ ...profile, avatar_url: data.publicUrl });
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (loading || !profile) {
     return (
         <div className="h-full w-full bg-[#1D1A15] flex items-center justify-center">
@@ -116,7 +160,7 @@ function ProfilePage() {
             
             {/* Pequeño menú de settings temporal */}
             {showSettings && (
-                <div className="absolute top-12 right-0 bg-[#372821] rounded-2xl p-2 shadow-2xl border border-white/10 min-w-[150px]">
+                <div className="absolute top-12 right-0 bg-[#372821] rounded-2xl p-2 shadow-2xl border border-white/10 min-w-37.5">
                     <button 
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-red-400 font-bold hover:bg-white/5 rounded-xl flex items-center gap-2"
@@ -131,12 +175,30 @@ function ProfilePage() {
       <section className="flex-1 overflow-y-auto pb-24">
         {/* AVATAR & INFO */}
         <div className="flex flex-col items-center mt-2 px-6">
-            <div className="w-28 h-28 rounded-full border-4 border-[#372821] bg-[#493A33] overflow-hidden shadow-xl mb-4">
-                <img 
-                    src={profile.avatar_url || `https://api.dicebear.com/7.x/miniavs/svg?seed=${profile.username}`} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover" 
-                />
+            <div className="relative w-28 h-28 mb-4">
+                <div className="w-full h-full rounded-full border-4 border-[#372821] bg-[#493A33] overflow-hidden shadow-xl">
+                    <img 
+                        src={profile.avatar_url || `https://api.dicebear.com/7.x/miniavs/svg?seed=${profile.username}`} 
+                        alt="Profile" 
+                        className={`w-full h-full object-cover ${uploading ? 'opacity-50' : ''}`} 
+                    />
+                </div>
+                
+                {/* Upload Button overlay */}
+                <label className="absolute bottom-0 right-0 bg-[#372821] border-2 border-[#1D1A15] p-2 rounded-full cursor-pointer hover:bg-[#493A33] transition-colors shadow-lg z-10 w-10 h-10 flex items-center justify-center">
+                  {uploading ? (
+                    <Loader2 className="text-[#E6DAC1] animate-spin" size={16} />
+                  ) : (
+                    <Camera className="text-[#E6DAC1]" size={16} />
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={uploadAvatar} 
+                    disabled={uploading}
+                    className="hidden" 
+                  />
+                </label>
             </div>
             <h1 className="text-3xl font-black text-[#E6DAC1] mb-1 font-lancelot tracking-wider">{profile.username}</h1>
         </div>

@@ -287,7 +287,7 @@ function App() {
 
       <div className="absolute top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
         {notifications.map((n) => (
-          <div key={n.id} className="bg-black/85 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-in pointer-events-auto min-w-[280px]">
+          <div key={n.id} className="bg-black/85 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-in pointer-events-auto min-w-70">
             {getToastIcon(n.type)}
             <p className="text-sm font-medium tracking-tight">{n.message}</p>
           </div>
