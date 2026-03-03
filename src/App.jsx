@@ -18,7 +18,7 @@ const getToastIcon = (type) => {
 
 function App() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const mapRef = useRef(null)
   const [map, setMap] = useState(null)
   const [markerLib, setMarkerLib] = useState(null)
@@ -30,6 +30,7 @@ function App() {
   const isInitialLoad = useRef(false)
 
   const [cafes, setCafes] = useState([]);
+  const [visitedCafeIds, setVisitedCafeIds] = useState(new Set());
 
   // Cargar cafeterías desde Supabase al iniciar
   useEffect(() => {
@@ -58,6 +59,28 @@ function App() {
 
     fetchCafes();
   }, []);
+
+  // Cargar interacciones del usuario
+  useEffect(() => {
+    if (!user) {
+      setVisitedCafeIds(new Set());
+      return;
+    }
+    
+    const fetchUserInteractions = async () => {
+      const { data, error } = await supabase
+        .from('user_cafes')
+        .select('cafe_id')
+        .eq('user_id', user.id)
+        .eq('is_visited', true);
+        
+      if (!error && data) {
+        setVisitedCafeIds(new Set(data.map(item => item.cafe_id)));
+      }
+    };
+    
+    fetchUserInteractions();
+  }, [user]);
 
   const showToast = (message, type = 'default') => {
     const id = Date.now() + Math.random();
@@ -346,6 +369,7 @@ function App() {
           title={cafe.nombre}
           imageUrl={cafe.imageUrl}
           link={cafe.link}
+          markerColor={visitedCafeIds.has(cafe.id) ? '#B39978' : undefined}
           onClick={() => navigate(`/cafe/${cafe.id}`)}
         />
       ))}

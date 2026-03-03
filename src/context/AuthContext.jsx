@@ -32,9 +32,34 @@ export function AuthProvider({ children }) {
         if (error) throw error;
         return data;
       },
-      register: async (email, password) => {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+      register: async (email, password, username) => {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              username: username
+            }
+          }
+        });
         if (error) throw error;
+
+        // Inmediatamente después de registrar en auth, guardar perfil en tabla pública
+        if (data?.user) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+               { 
+                 id: data.user.id, 
+                 username: username,
+                 avatar_url: `https://api.dicebear.com/7.x/miniavs/svg?seed=${username}`, 
+               }
+            ]);
+            
+          if (profileError) {
+             console.error("Error al crear perfil en DB:", profileError);
+          }
+        }
         return data;
       },
       logout: async () => {

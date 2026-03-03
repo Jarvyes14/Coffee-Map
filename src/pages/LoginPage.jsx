@@ -6,6 +6,7 @@ function LoginPage() {
   const { user, login, register } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [authMode, setAuthMode] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +33,12 @@ function LoginPage() {
 
     try {
       if (isRegisterMode) {
-        await register(email, password);
+        if (!username.trim()) {
+           setError('Por favor, ingresa un nombre de usuario.');
+           setSubmitting(false);
+           return;
+        }
+        await register(email, password, username);
       } else {
         await login(email, password);
       }
@@ -149,6 +155,18 @@ function LoginPage() {
             <div className={`form-container ${isRegisterMode ? 'open' : ''}`}>
               <div className="form-content">
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4 pb-2">
+                  <label className="text-sm font-semibold text-[#E6DAC1]">
+                    Nombre de usuario
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      required={isRegisterMode}
+                      autoComplete="username"
+                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+                    />
+                  </label>
+
                   <label className="text-sm font-semibold text-[#E6DAC1]">
                     Correo
                     <input

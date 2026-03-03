@@ -10,6 +10,8 @@ import SearchPage from './pages/SearchPage'
 import CafePage from './pages/CafePage'
 import { registerSW } from 'virtual:pwa-register'
 
+import ProfilePage from './pages/ProfilePage'
+
 // Registrar el Service Worker para la PWA
 const updateSW = registerSW({
   onNeedRefresh() {
@@ -49,6 +51,14 @@ createRoot(document.getElementById('root')).render(
             element={
               <ProtectedRoute>
                 <CafePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />

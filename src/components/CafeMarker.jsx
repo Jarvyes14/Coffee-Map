@@ -87,14 +87,37 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
       morph.style.backgroundColor = markerColor
     }
 
+    let marker = null
+
+    const forceCollapse = () => {
+      isHovered = false
+      isAnimating = false
+      if (animationTimeoutId !== null) {
+        window.clearTimeout(animationTimeoutId)
+        animationTimeoutId = null
+      }
+      markerRoot.classList.remove('cafe-marker--expanded', 'cafe-marker--animating')
+      if (marker) marker.zIndex = null
+      setCollapsedStyles()
+    }
+
+    const handleCloseOthers = (e) => {
+      if (e.detail !== markerRoot && markerRoot.classList.contains('cafe-marker--expanded')) {
+        forceCollapse()
+      }
+    }
+    window.addEventListener('close-other-markers', handleCloseOthers)
+
     const startExpandAnimation = () => {
       if (isAnimating || markerRoot.classList.contains('cafe-marker--expanded')) {
         return
       }
 
+      window.dispatchEvent(new CustomEvent('close-other-markers', { detail: markerRoot }))
+
       isAnimating = true
       markerRoot.classList.add('cafe-marker--expanded', 'cafe-marker--animating')
-      marker.zIndex = 10 // Elevar el z-index al expandir
+      if (marker) marker.zIndex = 10 // Elevar el z-index al expandir
       setExpandedStyles()
 
       animationTimeoutId = window.setTimeout(() => {
@@ -103,7 +126,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
         if (!isHovered) {
           markerRoot.classList.remove('cafe-marker--expanded')
-          marker.zIndex = null // Restaurar z-index
+          if (marker) marker.zIndex = null // Restaurar z-index
           setCollapsedStyles()
         }
       }, 1000)
@@ -119,7 +142,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
       if (!isAnimating) {
         markerRoot.classList.remove('cafe-marker--expanded')
-        marker.zIndex = null // Restaurar z-index
+        if (marker) marker.zIndex = null // Restaurar z-index
         setCollapsedStyles()
       }
     }
@@ -127,8 +150,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
     markerRoot.addEventListener('mouseenter', handleMouseEnter)
     markerRoot.addEventListener('mouseleave', handleMouseLeave)
 
-
-    const marker = new AdvancedMarkerElement({
+    marker = new AdvancedMarkerElement({
       map,
       position,
       title,
@@ -146,7 +168,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
           isHovered = false
           if (!isAnimating) {
             markerRoot.classList.remove('cafe-marker--expanded')
-            marker.zIndex = null // Restaurar z-index al colapsar por clic en mapa
+            if (marker) marker.zIndex = null // Restaurar z-index al colapsar por clic en mapa
             setCollapsedStyles()
           }
           window.google.maps.event.removeListener(mapClickListener)
@@ -162,6 +184,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
     })
 
     return () => {
+      window.removeEventListener('close-other-markers', handleCloseOthers)
       markerRoot.removeEventListener('mouseenter', handleMouseEnter)
       markerRoot.removeEventListener('mouseleave', handleMouseLeave)
       if (animationTimeoutId !== null) {
