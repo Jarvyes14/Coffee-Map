@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import SearchPage from './pages/SearchPage'
 import CafePage from './pages/CafePage'
 import { registerSW } from 'virtual:pwa-register'
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/"
             element={

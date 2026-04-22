@@ -3,13 +3,15 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function LoginPage() {
-  const { user, login, register } = useAuth();
+  const { user, login, register, resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [authMode, setAuthMode] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+  const [submittingReset, setSubmittingReset] = useState(false);
 
   const isRegisterMode = authMode === 'register';
   const isLoginMode = authMode === 'login';
@@ -19,16 +21,37 @@ function LoginPage() {
       // Si ya está en ese modo, lo cerramos (toggle)
       setAuthMode(null);
       setError('');
+      setResetMessage('');
     } else {
       // Cambiamos al nuevo modo
       setAuthMode(mode);
       setError('');
+      setResetMessage('');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      setError('Por favor, ingresa tu correo para restablecer la contraseña.');
+      return;
+    }
+    setError('');
+    setResetMessage('');
+    setSubmittingReset(true);
+    try {
+      await resetPassword(email);
+      setResetMessage('Te enviamos un enlace de recuperación. Revisa tu correo.');
+    } catch {
+      setError('No se pudo enviar el correo de recuperación.');
+    } finally {
+      setSubmittingReset(false);
     }
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
+    setResetMessage('');
     setSubmitting(true);
 
     try {
@@ -126,7 +149,25 @@ function LoginPage() {
                     />
                   </label>
 
-                  {error && isLoginMode && <p className="text-sm text-red-400">{error}</p>}
+                  {error && isLoginMode && (
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm text-red-400">{error}</p>
+                      {error.includes('No se pudo iniciar sesión') && (
+                        <button
+                          type="button"
+                          onClick={handleResetPassword}
+                          disabled={submittingReset}
+                          className="text-sm text-[#E6DAC1] text-center underline hover:text-[#C8B49A] transition-colors"
+                        >
+                          {submittingReset ? 'Enviando...' : '¿Olvidaste tu contraseña? Restablécela aquí'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {resetMessage && (
+                    <p className="text-sm text-green-400">{resetMessage}</p>
+                  )}
 
                   <button
                     type="submit"

@@ -32,6 +32,12 @@ export function AuthProvider({ children }) {
         if (error) throw error;
         return data;
       },
+      resetPassword: async (email) => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+      },
       register: async (email, password, username) => {
         const { data, error } = await supabase.auth.signUp({
           email,
