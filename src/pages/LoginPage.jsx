@@ -1,45 +1,50 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCoffeeData } from '../context/CoffeeDataContext';
+import PageLoading from '../components/PageLoading';
+import { importGoogleMapsLibrary } from '../utils/googleMapsLoader';
 
 function LoginPage() {
-  const { user, login, register, resetPassword } = useAuth();
+  const { user, loading, login, register, resetPassword } = useAuth();
+  const { preloadInitialData } = useCoffeeData();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [authMode, setAuthMode] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingReset, setSubmittingReset] = useState(false);
   const [error, setError] = useState('');
   const [resetMessage, setResetMessage] = useState('');
-  const [submittingReset, setSubmittingReset] = useState(false);
+  const [loginTransition, setLoginTransition] = useState(null);
+  const [transitionAnimationDone, setTransitionAnimationDone] = useState(false);
+  const enterButtonRef = useRef(null);
 
   const isRegisterMode = authMode === 'register';
   const isLoginMode = authMode === 'login';
+  const isForgotMode = authMode === 'forgot';
+  const isLoginSectionOpen = isLoginMode || isForgotMode;
 
   const handleModeSelect = (mode) => {
-    if (authMode === mode) {
-      // Si ya está en ese modo, lo cerramos (toggle)
-      setAuthMode(null);
-      setError('');
-      setResetMessage('');
-    } else {
-      // Cambiamos al nuevo modo
-      setAuthMode(mode);
-      setError('');
-      setResetMessage('');
-    }
+    setAuthMode((currentMode) => (currentMode === mode ? null : mode));
+    setError('');
+    setResetMessage('');
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
+
     if (!email.trim()) {
-      setError('Por favor, ingresa tu correo para restablecer la contraseña.');
+      setError('Ingresa tu correo para restablecer la contraseña.');
       return;
     }
+
     setError('');
     setResetMessage('');
     setSubmittingReset(true);
+
     try {
-      await resetPassword(email);
+      await resetPassword(email.trim());
       setResetMessage('Te enviamos un enlace de recuperación. Revisa tu correo.');
     } catch {
       setError('No se pudo enviar el correo de recuperación.');
@@ -57,13 +62,30 @@ function LoginPage() {
     try {
       if (isRegisterMode) {
         if (!username.trim()) {
-           setError('Por favor, ingresa un nombre de usuario.');
-           setSubmitting(false);
-           return;
+          setError('Ingresa un nombre de usuario.');
+          return;
         }
-        await register(email, password, username);
+        await register(email.trim(), password, username);
       } else {
-        await login(email, password);
+        const { data } = await login(email.trim(), password);
+        const buttonRect = enterButtonRef.current?.getBoundingClientRect();
+        const originX = buttonRect ? buttonRect.left + buttonRect.width / 2 : window.innerWidth / 2;
+        const originY = buttonRect ? buttonRect.top + buttonRect.height / 2 : window.innerHeight / 2;
+        const diameter = Math.hypot(window.innerWidth, window.innerHeight) * 2;
+
+        window.sessionStorage.setItem('coffee-map:map-entry-animation', 'slide-up');
+        setTransitionAnimationDone(false);
+        setLoginTransition({
+          diameter,
+          originX,
+          originY,
+          complete: false,
+        });
+
+        Promise.allSettled([
+          preloadInitialData(data.user.id),
+          importGoogleMapsLibrary('maps'),
+        ]);
       }
     } catch {
       setError(
@@ -76,12 +98,35 @@ function LoginPage() {
     }
   };
 
-  if (user) {
+  useEffect(() => {
+    if (!loginTransition || loginTransition.complete) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setTransitionAnimationDone(true);
+    }, 950);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loginTransition]);
+
+  useEffect(() => {
+    if (!transitionAnimationDone) return;
+
+    setLoginTransition((current) => {
+      if (!current || current.complete) return current;
+      return { ...current, complete: true };
+    });
+  }, [transitionAnimationDone]);
+
+  if (loading && !loginTransition) {
+    return <PageLoading message="Cargando sesion..." />;
+  }
+
+  if (user && (!loginTransition || loginTransition.complete)) {
     return <Navigate to="/" replace />;
   }
 
   return (
-    <main className="h-full w-full bg-[#372821] flex items-center justify-center p-4">
+    <main className="min-h-screen w-full bg-[#372821] flex items-center justify-center overflow-y-auto p-4">
       <section className="w-full max-w-md p-8">
         <style>{`
           .form-container {
@@ -95,6 +140,7 @@ function LoginPage() {
           }
           
           .form-content {
+            min-height: 0;
             overflow: hidden;
             opacity: 0;
             transition: opacity 0.3s ease-out;
@@ -105,6 +151,15 @@ function LoginPage() {
             opacity: 1;
             transition-delay: 0.2s;
           }
+
+          @keyframes login-button-expand {
+            0% {
+              transform: scale(0);
+            }
+            100% {
+              transform: scale(1);
+            }
+          }
         `}</style>
 
         <div className="flex justify-center mb-8">
@@ -112,7 +167,6 @@ function LoginPage() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {/* SECCIÓN INICIAR SESIÓN */}
           <div className="flex flex-col">
             <button
               type="button"
@@ -122,68 +176,103 @@ function LoginPage() {
               Inicia sesión
             </button>
 
-            <div className={`form-container ${isLoginMode ? 'open' : ''}`}>
+            <div className={`form-container ${isLoginSectionOpen ? 'open' : ''}`}>
               <div className="form-content">
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4 pb-2">
-                  <label className="text-sm font-semibold text-[#E6DAC1]">
-                    Correo
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      required
-                      autoComplete="email"
-                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
-                    />
-                  </label>
+                {isForgotMode ? (
+                  <form onSubmit={handleResetPassword} className="flex flex-col gap-4 pt-4 pb-2">
+                    <label className="text-sm font-semibold text-[#E6DAC1]">
+                      Correo de recuperación
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => {
+                          setEmail(event.target.value);
+                          setError('');
+                        }}
+                        required
+                        autoComplete="email"
+                        className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
+                      />
+                    </label>
 
-                  <label className="text-sm font-semibold text-[#E6DAC1]">
-                    Contraseña
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      required
-                      autoComplete="current-password"
-                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
-                    />
-                  </label>
+                    {error && <p className="text-sm text-red-300">{error}</p>}
+                    {resetMessage && <p className="text-sm text-green-300">{resetMessage}</p>}
 
-                  {error && isLoginMode && (
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm text-red-400">{error}</p>
-                      {error.includes('No se pudo iniciar sesión') && (
-                        <button
-                          type="button"
-                          onClick={handleResetPassword}
-                          disabled={submittingReset}
-                          className="text-sm text-[#E6DAC1] text-center underline hover:text-[#C8B49A] transition-colors"
-                        >
-                          {submittingReset ? 'Enviando...' : '¿Olvidaste tu contraseña? Restablécela aquí'}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    <button
+                      type="submit"
+                      disabled={submittingReset}
+                      className={`w-full h-min font-semibold py-1 rounded-xl transition-all mt-2 ${
+                        submittingReset ? 'bg-gray-500 text-gray-300' : 'bg-[#E6DAC1] hover:bg-[#C8B49A] text-[#372821]'
+                      }`}
+                    >
+                      {submittingReset ? 'Enviando...' : 'Enviar enlace'}
+                    </button>
 
-                  {resetMessage && (
-                    <p className="text-sm text-green-400">{resetMessage}</p>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => handleModeSelect('login')}
+                      className="text-sm text-[#E6DAC1]/80 text-center underline hover:text-[#E6DAC1] transition-colors"
+                    >
+                      Volver a iniciar sesión
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4 pb-2">
+                    <label className="text-sm font-semibold text-[#E6DAC1]">
+                      Correo
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                        autoComplete="email"
+                        className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
+                      />
+                    </label>
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className={`w-full h-min font-semibold py-1 rounded-xl transition-all mt-2 ${
-                      submitting ? 'bg-gray-500 text-gray-300' : 'bg-[#E6DAC1] hover:bg-[#C8B49A] text-[#372821]'
-                    }`}
-                  >
-                    {submitting ? 'Ingresando...' : 'Entrar'}
-                  </button>
-                </form>
+                    <label className="text-sm font-semibold text-[#E6DAC1]">
+                      Contraseña
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(event) => {
+                          setPassword(event.target.value);
+                          setError('');
+                        }}
+                        required
+                        autoComplete="current-password"
+                        className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
+                      />
+                    </label>
+
+                    {error && isLoginMode && !submitting && !loginTransition && (
+                      <p className="text-sm text-red-300">{error}</p>
+                    )}
+
+                    <button
+                      ref={enterButtonRef}
+                      type="submit"
+                      disabled={submitting}
+                      className={`w-full h-min font-semibold py-1 rounded-xl transition-all mt-2 bg-[#E6DAC1] hover:bg-[#C8B49A] disabled:cursor-wait disabled:hover:bg-[#E6DAC1] ${
+                        loginTransition ? 'text-[#E6DAC1]' : 'text-[#372821]'
+                      }`}
+                    >
+                      {submitting ? 'Ingresando...' : 'Entrar'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleModeSelect('forgot')}
+                      className="text-sm text-[#E6DAC1]/80 text-center underline hover:text-[#E6DAC1] transition-colors"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           </div>
 
-          {/* SECCIÓN CREAR CUENTA */}
           <div className="flex flex-col">
             <button
               type="button"
@@ -204,7 +293,7 @@ function LoginPage() {
                       onChange={(event) => setUsername(event.target.value)}
                       required={isRegisterMode}
                       autoComplete="username"
-                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+                      className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
                     />
                   </label>
 
@@ -216,7 +305,7 @@ function LoginPage() {
                       onChange={(event) => setEmail(event.target.value)}
                       required
                       autoComplete="email"
-                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+                      className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
                     />
                   </label>
 
@@ -228,11 +317,11 @@ function LoginPage() {
                       onChange={(event) => setPassword(event.target.value)}
                       required
                       autoComplete="new-password"
-                      className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+                      className="mt-1 w-full rounded-xl border-2 border-[#E6DAC1]/45 px-3 py-2 outline-none shadow-none focus:shadow-none focus:ring-0 focus:border-[#E6DAC1] bg-transparent text-[#E6DAC1]"
                     />
                   </label>
 
-                  {error && isRegisterMode && <p className="text-sm text-red-400">{error}</p>}
+                  {error && isRegisterMode && <p className="text-sm text-red-300">{error}</p>}
 
                   <button
                     type="submit"
@@ -249,6 +338,21 @@ function LoginPage() {
           </div>
         </div>
       </section>
+
+      {loginTransition && (
+        <div
+          className="fixed z-[60] rounded-full bg-[#E6DAC1] pointer-events-none"
+          style={{
+            width: `${loginTransition.diameter}px`,
+            height: `${loginTransition.diameter}px`,
+            left: `${loginTransition.originX - loginTransition.diameter / 2}px`,
+            top: `${loginTransition.originY - loginTransition.diameter / 2}px`,
+            transform: 'scale(0)',
+            animation: 'login-button-expand 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
+          }}
+          onAnimationEnd={() => setTransitionAnimationDone(true)}
+        />
+      )}
     </main>
   );
 }

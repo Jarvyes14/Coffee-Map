@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase';
 
@@ -9,10 +9,6 @@ function ResetPasswordPage() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-
-  // Supabase procesa el token de la URL automáticamente al cargar la página
-  // Para cuando este componente se renderiza, el usuario ya debería estar "autenticado" 
-  // gracias al token de recuperación en el hash.
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -32,19 +28,19 @@ function ResetPasswordPage() {
     setSubmitting(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
       });
 
-      if (error) {
-         setError('Hubo un error al actualizar la contraseña: ' + error.message);
+      if (updateError) {
+        setError(`Hubo un error al actualizar la contraseña: ${updateError.message}`);
       } else {
-         setMessage('¡Contraseña actualizada con éxito!');
-         setTimeout(() => {
-           navigate('/'); // Redirigir al inicio 
-         }, 3000);
+        setMessage('Contraseña actualizada con éxito.');
+        window.setTimeout(() => {
+          navigate('/');
+        }, 2500);
       }
-    } catch (err) {
+    } catch {
       setError('Ocurrió un error inesperado.');
     } finally {
       setSubmitting(false);
@@ -52,24 +48,24 @@ function ResetPasswordPage() {
   };
 
   return (
-    <main className="h-full w-full bg-[#372821] flex items-center justify-center p-4 min-h-screen">
+    <main className="h-full min-h-screen w-full bg-[#372821] flex items-center justify-center p-4">
       <section className="w-full max-w-md p-8 flex flex-col gap-4">
-        
         <div className="flex justify-center mb-4">
           <img src="/logo.png" alt="Coffee Map Logo" className="object-contain w-32" />
         </div>
 
-        <h1 className="text-2xl font-bold text-[#E6DAC1] text-center mb-2">Restablecer Contraseña</h1>
-        
+        <h1 className="text-2xl font-bold text-[#E6DAC1] text-center mb-2">Restablecer contraseña</h1>
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className="text-sm font-semibold text-[#E6DAC1]">
             Nueva contraseña
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               required
-              className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+              autoComplete="new-password"
+              className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-[#E6DAC1]/50 bg-transparent text-[#E6DAC1]"
             />
           </label>
 
@@ -78,14 +74,15 @@ function ResetPasswordPage() {
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(event) => setConfirmPassword(event.target.value)}
               required
-              className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-[#E6DAC1]"
+              autoComplete="new-password"
+              className="mt-1 w-full rounded-xl border border-[#E6DAC1] px-3 py-2 outline-none focus:ring-2 focus:ring-[#E6DAC1]/50 bg-transparent text-[#E6DAC1]"
             />
           </label>
 
-          {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-          {message && <p className="text-sm text-green-400 text-center">{message}</p>}
+          {error && <p className="text-sm text-red-300 text-center">{error}</p>}
+          {message && <p className="text-sm text-green-300 text-center">{message}</p>}
 
           <button
             type="submit"

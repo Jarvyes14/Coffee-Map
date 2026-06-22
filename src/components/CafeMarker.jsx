@@ -1,6 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerColor = '#4B2C20', onClick }) {
+  const onClickRef = useRef(onClick)
+
+  useEffect(() => {
+    onClickRef.current = onClick
+  }, [onClick])
+
   useEffect(() => {
     if (!map || !markerLib) {
       return
@@ -88,10 +94,19 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
     }
 
     let marker = null
+    let mapClickListener = null
+
+    const removeMapClickListener = () => {
+      if (mapClickListener) {
+        window.google.maps.event.removeListener(mapClickListener)
+        mapClickListener = null
+      }
+    }
 
     const forceCollapse = () => {
       isHovered = false
       isAnimating = false
+      removeMapClickListener()
       if (animationTimeoutId !== null) {
         window.clearTimeout(animationTimeoutId)
         animationTimeoutId = null
@@ -117,7 +132,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
       isAnimating = true
       markerRoot.classList.add('cafe-marker--expanded', 'cafe-marker--animating')
-      if (marker) marker.zIndex = 10 // Elevar el z-index al expandir
+      if (marker) marker.zIndex = 10
       setExpandedStyles()
 
       animationTimeoutId = window.setTimeout(() => {
@@ -126,7 +141,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
         if (!isHovered) {
           markerRoot.classList.remove('cafe-marker--expanded')
-          if (marker) marker.zIndex = null // Restaurar z-index
+          if (marker) marker.zIndex = null
           setCollapsedStyles()
         }
       }, 1000)
@@ -142,7 +157,7 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
 
       if (!isAnimating) {
         markerRoot.classList.remove('cafe-marker--expanded')
-        if (marker) marker.zIndex = null // Restaurar z-index
+        if (marker) marker.zIndex = null
         setCollapsedStyles()
       }
     }
@@ -155,43 +170,44 @@ function CafeMarker({ map, markerLib, position, title, link, imageUrl, markerCol
       position,
       title,
       content: markerRoot,
+      gmpClickable: true,
     })
 
-    const clickListener = marker.addListener('click', () => {
+    const handleMarkerClick = () => {
       if (!markerRoot.classList.contains('cafe-marker--expanded')) {
-        // Primer clic: expandir (simular hover)
         isHovered = true
         startExpandAnimation()
-        
-        // Colapsar si se hace clic en el mapa
-        const mapClickListener = map.addListener('click', () => {
+
+        removeMapClickListener()
+        mapClickListener = map.addListener('click', () => {
           isHovered = false
           if (!isAnimating) {
             markerRoot.classList.remove('cafe-marker--expanded')
-            if (marker) marker.zIndex = null // Restaurar z-index al colapsar por clic en mapa
+            if (marker) marker.zIndex = null
             setCollapsedStyles()
           }
-          window.google.maps.event.removeListener(mapClickListener)
+          removeMapClickListener()
         })
       } else {
-        // Segundo clic: navegar
-        if (onClick) {
-          onClick()
+        removeMapClickListener()
+        if (onClickRef.current) {
+          onClickRef.current()
         } else if (typeof link === 'string' && link.length > 0) {
           window.open(link, '_blank', 'noopener,noreferrer')
         }
       }
-    })
+    }
+
+    marker.addEventListener('gmp-click', handleMarkerClick)
 
     return () => {
       window.removeEventListener('close-other-markers', handleCloseOthers)
       markerRoot.removeEventListener('mouseenter', handleMouseEnter)
       markerRoot.removeEventListener('mouseleave', handleMouseLeave)
+      marker.removeEventListener('gmp-click', handleMarkerClick)
+      removeMapClickListener()
       if (animationTimeoutId !== null) {
         window.clearTimeout(animationTimeoutId)
-      }
-      if (clickListener?.remove) {
-        clickListener.remove()
       }
       marker.map = null
     }
